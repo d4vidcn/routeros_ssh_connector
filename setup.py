@@ -10,7 +10,6 @@ setup(
     author_email = 'd4vidcn.code@gmail.com',
     license="MIT",
     url = 'https://github.com/d4vidcn/routeros_ssh_connector',
-    download_url = 'https://github.com/d4vidcn/routeros_ssh_connector/tarball/v1.0',
     keywords = ['mikrotik', 'routeros', 'ssh', 'connector', 'ssh connector', 'mikrotik routeros', 'mikrotik ssh', 'routeros ssh'],
     classifiers = [],
     include_package_data = True,
