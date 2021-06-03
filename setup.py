@@ -6,8 +6,8 @@ with open("README.md", "r", encoding="utf-8") as fh:
 setup(
     name = 'routeros_ssh_connector',
     packages = ['routeros_ssh_connector'],
-    version = '1.2',
-    description = 'A python-based SSH class for MikroTik devices',
+    version = '1.3',
+    description = 'A python-based SSH API for MikroTik devices',
     long_description = long_description,
     long_description_content_type = "text/markdown",
     author = 'd4vidCN',
