@@ -1,18 +1,27 @@
 from distutils.core import setup
-from os import read
 
-readme = open("README.md", "r")
+with open("README.md", "r", encoding="utf-8") as fh:
+    long_description = fh.read()
 
 setup(
     name = 'routeros_ssh_connector',
     packages = ['routeros_ssh_connector'],
     version = '1.1',
     description = 'A python-based SSH class for MikroTik devices',
-    long_description = readme.read(),
+    long_description = long_description,
+    long_description_content_type = "text/markdown",
     author = 'd4vidCN',
     author_email = 'd4vidcn.code@gmail.com',
     license="MIT",
     url = 'https://github.com/d4vidcn/routeros_ssh_connector',
+    project_urls={
+        "Bug Tracker": "https://github.com/d4vidcn/routeros_ssh_connector/issues",
+    },
+    classifiers=[
+        "Programming Language :: Python :: 3",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent",
+    ],
     keywords = ['mikrotik', 'routeros', 'ssh', 'connector', 'ssh connector', 'mikrotik routeros', 'mikrotik ssh', 'routeros ssh'],
     classifiers = [],
     include_package_data = True,
