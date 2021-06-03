@@ -206,7 +206,10 @@ class MikrotikDevice:
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     def update_identity(self, name):
-        return self.check_addset_result(self.net_connect.send_command(f"/system identity set name={name}"))
+        return self.check_addsetcreate_result(self.net_connect.send_command(f"/system identity set name={name}"))
+
+    def update_ip_address(self, interface, address, disabled="no"):
+        return self.check_addsetcreate_result(self.net_connect.send_command(f"/ip address set address={address} disabled={disabled} [find interface={interface}]"))
 
     def update_services(self, service, disabled, port=None, address=None):
         self.command = f"/ip service set {service} disabled={disabled}"
@@ -217,7 +220,7 @@ class MikrotikDevice:
         if address != None:
             self.command += f" address={address}"
 
-        return self.check_addset_result(self.net_connect.send_command(self.command))
+        return self.check_addsetcreate_result(self.net_connect.send_command(self.command))
 
     def update_user(self, username, password, group):
         self.command = f"/user set {username}"        
@@ -228,27 +231,83 @@ class MikrotikDevice:
         if group != "":
             self.command += f" group={group}"
 
-        return self.check_addset_result(self.net_connect.send_command(self.command))
+        return self.check_addsetcreate_result(self.net_connect.send_command(self.command))
 
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    def create_address_pool(self, name, range, next_pool="none"):
+        return self.check_addsetcreate_result(self.net_connect.send_command(f"/ip pool add name={name} ranges={range} next-pool={next_pool}"))
+
+    def create_dhcp_client(self, interface, disabled="no", add_default_route="yes", route_distance=1, use_peer_dns="yes", use_peer_ntp="yes"):
+        return self.check_addsetcreate_result(self.net_connect.send_command(f"""
+            /ip dhcp-client add interface={interface} disabled={disabled} add-default-route={add_default_route} default-route-distance={route_distance} use-peer-dns={use_peer_dns} use-peer-ntp={use_peer_ntp}
+            """))
+
+    def create_dhcp_server(self, interface, network_address=None, disabled="no", name="dhcp_server", address_pool="static-only", lease_time="00:10:00", dns_server="1.1.1.1,9.9.9.9"):
+        server_cmd = self.check_addsetcreate_result(self.net_connect.send_command(f"/ip dhcp-server add disabled={disabled} interface={interface} name={name} address-pool={address_pool} lease-time={lease_time}"))
+        network_cmd = ""
+
+        if server_cmd == True:
+            ip_addresses = self.get_ip_addresses()
+            available_ip_addresses = []
+            
+            for ip_address in ip_addresses:
+                if ip_address['interface'] == interface:
+                    available_ip_addresses.append(ip_address['address'])
+                    
+            if len(available_ip_addresses) == 1:
+                network = ip_address['network']
+                prefix = ip_address['address'].split("/")[1]
+                address = network + "/" + prefix
+                gateway = ip_address['address'].split("/")[0]
+                
+                network_cmd = self.check_addsetcreate_result(self.net_connect.send_command(f"/ip dhcp-server network add address={address} gateway={gateway} dns-server={dns_server}"))
+
+                if network_cmd is not True:
+                    return network_cmd
+
+            else:
+                if network_address is not None:                    
+                    network = ip_address['network']
+                    prefix = ip_address['address'].split("/")[1]
+                    address = network + "/" + prefix
+                    gateway = ip_address['address'].split("/")[0]
+                
+                    network_cmd = self.check_addsetcreate_result(self.net_connect.send_command(f"/ip dhcp-server network add address={address} gateway={gateway} dns-server={dns_server}"))
+
+                    if network_cmd is not True:
+                        return network_cmd
+                    
+                else:
+                    err_msg = f"ERROR: There is more than one IP address assigned to the same interface. Run the command again and pass 'network_address' parameter with the IP address on which you want to configure the DHCP server."
+                    print(err_msg, "\nAvailable IP addresses are:")
+
+                    for ip in available_ip_addresses:
+                        print(f"\t{ip}")
+
+        else:
+            return server_cmd
+
+        if server_cmd == True and network_cmd == True:
+            return True
+
     def create_ip_address(self, ip_address, interface):
-        return self.check_addset_result(self.net_connect.send_command(f"/ip address add address={ip_address} interface={interface}"))
+        return self.check_addsetcreate_result(self.net_connect.send_command(f"/ip address add address={ip_address} interface={interface}"))
 
     def create_route(self, dst_address, gateway, distance, disabled):
-        return self.check_addset_result(self.net_connect.send_command(f"/ip route add dst-address={dst_address} gateway={gateway} distance={distance} disabled={disabled}"))
+        return self.check_addsetcreate_result(self.net_connect.send_command(f"/ip route add dst-address={dst_address} gateway={gateway} distance={distance} disabled={disabled}"))
 
     def create_user(self, username, password, group):
-        return self.check_addset_result(self.net_connect.send_command(f"/user add name={username} password={password} group={group}"))
+        return self.check_addsetcreate_result(self.net_connect.send_command(f"/user add name={username} password={password} group={group}"))
 
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    def check_addset_result(self, command_output):
+    def check_addsetcreate_result(self, command_output):
         for line in command_output.splitlines():
-            parsed = re.sub(" +", " ", line).strip()
+            message = re.sub(" +", " ", line).strip()
 
-            if parsed != "":
-                return parsed
+            if message != "":
+                return message
             else:
                 return True
 

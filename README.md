@@ -1,7 +1,7 @@
 # MikroTik RouterOS SSH connector for Python
 
 ## Features
-A python-based SSH class for MikroTik devices
+A python-based SSH API for MikroTik devices
 
 This class allows you to get, update and create configuration on MikroTik devices plus other some extra utilities.
 
@@ -35,12 +35,12 @@ router.connect("ip_address", "username", "password", "port")
 
 **GET**             |    **UPDATE**     |      **CREATE**       |      **TOOLS**
 :------------------:|:-----------------:|:---------------------:|:-------------------:
-get_identity        | update_identity   | create_ip_address     | do_backup
-get_interfaces      | update_ip_address | create_route          | enable_cloud_dns
-get_ip_addresses    | update_services   | create_user           | export_configuration
-get_resources       | update_user       |                       | send_command
-get_routes<sup>**1**</sup>|                   |                       | 
-get_services        |                   |                       | 
+get_identity        | update_identity   | create_address_pool   | do_backup
+get_interfaces      | update_ip_address | create_dhcp_client    | enable_cloud_dns
+get_ip_addresses    | update_services   | create_dhcp_server    | export_configuration
+get_resources       | update_user       | create_ip_address     | send_command
+get_routes<sup>**1**</sup>|             | create_route          | 
+get_services        |                   | create_user           | 
 get_users           |                   |                       |
 
 <sup>**1**</sup> Limited to first 1000 routes due to performance

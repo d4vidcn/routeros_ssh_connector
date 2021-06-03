@@ -1,3 +1,4 @@
 /routeros_ssh_connector.*
 /test.py
 /dist/
+/routeros_ssh_connector/__pycache__/
