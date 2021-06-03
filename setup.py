@@ -23,7 +23,6 @@ setup(
         "Operating System :: OS Independent",
     ],
     keywords = ['mikrotik', 'routeros', 'ssh', 'connector', 'ssh connector', 'mikrotik routeros', 'mikrotik ssh', 'routeros ssh'],
-    classifiers = [],
     include_package_data = True,
     install_requires=[
           'netmiko==3.4.0',
