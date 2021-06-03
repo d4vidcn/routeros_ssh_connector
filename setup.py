@@ -9,7 +9,6 @@ setup(
     version = '1.1',
     description = 'A python-based SSH class for MikroTik devices',
     long_description = readme.read(),
-    long_description_content_type = "text/markdown",
     author = 'd4vidCN',
     author_email = 'd4vidcn.code@gmail.com',
     license="MIT",
