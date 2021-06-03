@@ -18,8 +18,8 @@ setup(
         "Bug Tracker": "https://github.com/d4vidcn/routeros_ssh_connector/issues",
     },
     classifiers=[
-        "Programming Language :: Python 3",
-        "License :: MIT License",
+        "Programming Language :: Python :: 3",
+        "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
     keywords = ['mikrotik', 'routeros', 'ssh', 'connector', 'ssh connector', 'mikrotik routeros', 'mikrotik ssh', 'routeros ssh'],
