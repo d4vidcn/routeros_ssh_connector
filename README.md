@@ -1,5 +1,12 @@
 # MikroTik RouterOS SSH connector for Python
 
+<div>
+    <a href="https://github.com/d4vidcn/routeros_ssh_connector/blob/master/LICENSE"><img src="https://svgshare.com/i/Xt6.svg" /></a>
+    <a href="https://pypi.org/project/routeros-ssh-connector/"><img src="https://svgshare.com/i/Xrn.svg" /></a>
+    <img src="https://svgshare.com/i/XtH.svg" />
+</div>
+
+
 ## Features
 A python-based SSH API for MikroTik devices
 
@@ -33,15 +40,16 @@ router.connect("ip_address", "username", "password", "port")
 
 #### 4. Call any of the following available methods
 
-**GET**             |    **UPDATE**     |      **CREATE**       |      **TOOLS**
-:------------------:|:-----------------:|:---------------------:|:-------------------:
-get_identity        | update_identity   | create_address_pool   | do_backup
-get_interfaces      | update_ip_address | create_dhcp_client    | enable_cloud_dns
-get_ip_addresses    | update_services   | create_dhcp_server    | export_configuration
-get_resources       | update_user       | create_ip_address     | send_command
-get_routes<sup>**1**</sup>|             | create_route          | 
-get_services        |                   | create_user           | 
-get_users           |                   |                       |
+**GET**                     |           **UPDATE**          |         **CREATE**        |      **TOOLS**
+:--------------------------:|:-----------------------------:|:-------------------------:|:-------------------:
+get_identity                | update_address_pool           | create_address_pool       | make_backup
+get_interfaces              | update_dhcp_client            | create_dhcp_client        | download_backup
+get_ip_addresses            | update_dhcp_server_server     | create_dhcp_server        | download_export
+get_resources               | update_dhcp_server_network    | create_ip_address         | enable_cloud_dns
+get_routes<sup>**1**</sup>  | update_identity               | create_route              | export_configuration
+get_services                | update_ip_address             | create_user               | send_command
+get_users                   | update_services               |                           |
+                            | update_user                   |                           |
 
 <sup>**1**</sup> Limited to first 1000 routes due to performance
 
@@ -91,7 +99,7 @@ router.disconnect()
 del router
 ```
 
-Output return `True` if no errors are encountered. In other case, returns the error itself:
+Output returns `True` if no errors are encountered. In other case, returns the error itself:
 
     True
 
@@ -107,7 +115,7 @@ router.disconnect()
 del router
 ```
 
-Output return `True` if no errors are encountered. In other case, returns the error itself:
+Output returns `True` if no errors are encountered. In other case, returns the error itself:
 
     True
 
@@ -131,3 +139,65 @@ Output returns command output like a terminal:
         time-zone-name: Europe/Madrid
             gmt-offset: +02:00
             dst-active: yes
+
+#### Download backup from device to local folder
+```python
+from routeros_ssh_connector import MikrotikDevice
+
+router = MikrotikDevice()
+router.connect("10.0.0.1", "myuser", "strongpassword")
+
+# local_path examples:
+# For Linux: "/home/myuser"
+# For Windows: "C:/Users/myuser/Downloads"
+
+print(router.download_backup("local_path"))
+router.disconnect()
+del router
+```
+
+Output returns `True` if no errors are encountered. In other case, returns the error itself:
+
+    True
+
+
+#### Export full config from device to terminal output
+```python
+from routeros_ssh_connector import MikrotikDevice
+
+router = MikrotikDevice()
+router.connect("10.0.0.1", "myuser", "strongpassword")
+print(router.export_configuration())
+router.disconnect()
+del router
+```
+
+Output returns device config export to terminal:
+
+    # jun/01/2021 19:04:03 by RouterOS 6.47.9
+    # software id = XXXX-XXXX
+    #
+    # model = RouterBOARD mAP L-2nD
+    # serial number = FFFFFFFFFFF
+    /interface pwr-line set [ find default-name=pwr-line1 ] disabled=yes
+    /interface bridge add name=lo0
+    /interface ethernet set [ find default-name=ether1 ] l2mtu=2000
+    /interface wireless set [ find default-name=wlan1 ] ssid=MikroTik
+    /interface wireless security-profiles set [ find default=yes ] supplicant-identity=MikroTik
+    /ip hotspot profile set [ find default=yes ] html-directory=flash/hotspot
+    ...
+
+#### Export full config from device to local folder
+```python
+from routeros_ssh_connector import MikrotikDevice
+
+router = MikrotikDevice()
+router.connect("10.0.0.1", "myuser", "strongpassword")
+print(router.download_export("/home/myuser"))
+router.disconnect()
+del router
+```
+
+Output returns a message with full path of downloaded export:
+
+    Config exported sucessfully in /home/myuser/export_04-06-2021_19-07-29.rsc
