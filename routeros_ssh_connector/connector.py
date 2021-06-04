@@ -30,6 +30,20 @@ class MikrotikDevice:
 
 
  # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    def get_export_configuration(self):
+        self.output = self.net_connect.send_command("/export terse", delay_factor=8)    
+
+        output = ""    
+
+        for line in self.output.splitlines():
+            if line != "":
+                if output == "":
+                    output += line
+                else:
+                    output += "\n" + line
+        
+        return output
+
     def get_identity(self):
         self.output = self.net_connect.send_command("/system identity print")        
 
@@ -107,7 +121,12 @@ class MikrotikDevice:
             parsed = re.sub(" +", " ", line).strip().split(" ")
 
             if re.search("^([0-9]|[1-9][0-9]{1,2}|[1-7][0-9]{3}|80[0-9]{2}|81[0-8][0-9]|819[0-2])", parsed[0]):
-                ip_address["address"] = parsed[1]
+                if re.search("[A-Z]", parsed[1]):
+                    ip_address["address"] = parsed[2]
+                
+                else:
+                    ip_address["address"] = parsed[1]
+
                 ip_address["network"] = parsed[2]
                 ip_address["interface"] = parsed[3]
                 self.ip_addresses.append(ip_address)
@@ -431,16 +450,6 @@ class MikrotikDevice:
         time.sleep(2)
 
         return self.net_connect.send_command(":put [/ip cloud get dns-name]")
-
-    def export_configuration(self):
-        self.output = self.net_connect.send_command("/export terse", delay_factor=8)    
-
-        output = ""    
-
-        for line in self.output.splitlines():
-            output += "\n" + line
-        
-        return output
 
     def make_backup(self, name="backup", password="", encryption="aes-sha256", dont_encrypt="yes"):
         self.last_backup['name'] = name + "_" + self.get_identity() + "_" + self.current_datetime
