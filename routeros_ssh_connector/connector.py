@@ -1,11 +1,17 @@
+from os import remove
 import re
 import time
+import paramiko
 
+from datetime import datetime
 from netmiko import Netmiko
+import paramiko
 
 class MikrotikDevice:
     def __init__(self):
-        pass
+        self.now = datetime.now()
+        self.current_datetime = self.now.strftime("%d-%m-%Y_%H-%M-%S")
+        self.last_backup = {}
 
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -205,11 +211,82 @@ class MikrotikDevice:
 
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    def update_address_pool(self, pool_name, new_pool_name=None, addresses=None, next_pool=None):
+        self.cmd = f"/ip pool set {pool_name}"
+
+        if new_pool_name is not None:
+            self.cmd += f" name={new_pool_name}"
+
+        if addresses is not None:
+            self.cmd += f" ranges={addresses}"
+
+        if next_pool is not None:
+            self.cmd += f" next-pool={next_pool}"
+
+        return self.check_result(self.net_connect.send_command(self.cmd))
+
+    def update_dhcp_client(self, interface, disabled, add_default_route, route_distance, use_peer_dns, use_peer_ntp):
+        return self.check_result(self.net_connect.send_command(f"/ip dhcp-client set numbers=[find interface=\"{interface}\"] disabled={disabled} add-default-route={add_default_route} default-route-distance={route_distance} use-peer-dns={use_peer_dns} use-peer-ntp={use_peer_ntp}"))
+
+    def update_dhcp_server_server(self, interface, disabled=None, name=None, lease_time=None, address_pool=None):
+        self.cmd = f"/ip dhcp-server set numbers=[find interface=\"{interface}\"]"
+
+        if disabled is not None:
+            self.cmd += f" disabled={disabled}"
+
+        if name is not None:
+            self.cmd += f" name={name}"
+
+        if lease_time is not None:
+            self.cmd += f" lease-time={lease_time}"
+
+        if address_pool is not None:
+            self.cmd += f" address-pool={address_pool}"
+
+        return self.check_result(self.net_connect.send_command(self.cmd))
+
+    def update_dhcp_server_network(self, address, gateway=None, netmask=None, dns_server=None, ntp_server=None):
+        get_networks = self.net_connect.send_command("/ip dhcp-server network print")
+
+        network_match = False
+        network_count = 0
+
+        for network in get_networks.splitlines():
+            parsed_line = re.sub(" +", " ", network).strip().split(" ")
+
+            if re.search("^\d+", parsed_line[0]):
+                network_count += 1
+
+                if parsed_line[1] == address:
+                    network_match = True
+
+                    self.cmd = f"/ip dhcp-server network set numbers=[find address=\"{address}\"]"
+
+                    if gateway is not None:
+                        self.cmd += f" gateway={gateway}"
+
+                    if netmask is not None:
+                        self.cmd += f" netmask={netmask}"
+
+                    if dns_server is not None:
+                        self.cmd += f" dns-server={dns_server}"
+
+                    if ntp_server is not None:
+                        self.cmd += f" ntp-server={ntp_server}"                    
+
+                    return self.check_result(self.net_connect.send_command(self.cmd))
+
+        if network_count == 0:
+            return "ERROR: There are not any created network. Please, create it first"
+
+        if network_match == False:
+            return "ERROR: There are not any network with specified address"
+
     def update_identity(self, name):
-        return self.check_addsetcreate_result(self.net_connect.send_command(f"/system identity set name={name}"))
+        return self.check_result(self.net_connect.send_command(f"/system identity set name={name}"))
 
     def update_ip_address(self, interface, address, disabled="no"):
-        return self.check_addsetcreate_result(self.net_connect.send_command(f"/ip address set address={address} disabled={disabled} [find interface={interface}]"))
+        return self.check_result(self.net_connect.send_command(f"/ip address set address={address} disabled={disabled} [find interface=\"{interface}\"]"))
 
     def update_services(self, service, disabled, port=None, address=None):
         self.command = f"/ip service set {service} disabled={disabled}"
@@ -220,7 +297,7 @@ class MikrotikDevice:
         if address != None:
             self.command += f" address={address}"
 
-        return self.check_addsetcreate_result(self.net_connect.send_command(self.command))
+        return self.check_result(self.net_connect.send_command(self.command))
 
     def update_user(self, username, password, group):
         self.command = f"/user set {username}"        
@@ -231,20 +308,20 @@ class MikrotikDevice:
         if group != "":
             self.command += f" group={group}"
 
-        return self.check_addsetcreate_result(self.net_connect.send_command(self.command))
+        return self.check_result(self.net_connect.send_command(self.command))
 
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     def create_address_pool(self, name, range, next_pool="none"):
-        return self.check_addsetcreate_result(self.net_connect.send_command(f"/ip pool add name={name} ranges={range} next-pool={next_pool}"))
+        return self.check_result(self.net_connect.send_command(f"/ip pool add name={name} ranges={range} next-pool={next_pool}"))
 
     def create_dhcp_client(self, interface, disabled="no", add_default_route="yes", route_distance=1, use_peer_dns="yes", use_peer_ntp="yes"):
-        return self.check_addsetcreate_result(self.net_connect.send_command(f"""
-            /ip dhcp-client add interface={interface} disabled={disabled} add-default-route={add_default_route} default-route-distance={route_distance} use-peer-dns={use_peer_dns} use-peer-ntp={use_peer_ntp}
+        return self.check_result(self.net_connect.send_command(f"""
+            /ip dhcp-client add interface=\"{interface}\" disabled={disabled} add-default-route={add_default_route} default-route-distance={route_distance} use-peer-dns={use_peer_dns} use-peer-ntp={use_peer_ntp}
             """))
 
     def create_dhcp_server(self, interface, network_address=None, disabled="no", name="dhcp_server", address_pool="static-only", lease_time="00:10:00", dns_server="1.1.1.1,9.9.9.9"):
-        server_cmd = self.check_addsetcreate_result(self.net_connect.send_command(f"/ip dhcp-server add disabled={disabled} interface={interface} name={name} address-pool={address_pool} lease-time={lease_time}"))
+        server_cmd = self.check_result(self.net_connect.send_command(f"/ip dhcp-server add disabled={disabled} interface=\"{interface}\" name={name} address-pool={address_pool} lease-time={lease_time}"))
         network_cmd = ""
 
         if server_cmd == True:
@@ -261,7 +338,7 @@ class MikrotikDevice:
                 address = network + "/" + prefix
                 gateway = ip_address['address'].split("/")[0]
                 
-                network_cmd = self.check_addsetcreate_result(self.net_connect.send_command(f"/ip dhcp-server network add address={address} gateway={gateway} dns-server={dns_server}"))
+                network_cmd = self.check_result(self.net_connect.send_command(f"/ip dhcp-server network add address={address} gateway={gateway} dns-server={dns_server}"))
 
                 if network_cmd is not True:
                     return network_cmd
@@ -273,7 +350,7 @@ class MikrotikDevice:
                     address = network + "/" + prefix
                     gateway = ip_address['address'].split("/")[0]
                 
-                    network_cmd = self.check_addsetcreate_result(self.net_connect.send_command(f"/ip dhcp-server network add address={address} gateway={gateway} dns-server={dns_server}"))
+                    network_cmd = self.check_result(self.net_connect.send_command(f"/ip dhcp-server network add address={address} gateway={gateway} dns-server={dns_server}"))
 
                     if network_cmd is not True:
                         return network_cmd
@@ -292,17 +369,17 @@ class MikrotikDevice:
             return True
 
     def create_ip_address(self, ip_address, interface):
-        return self.check_addsetcreate_result(self.net_connect.send_command(f"/ip address add address={ip_address} interface={interface}"))
+        return self.check_result(self.net_connect.send_command(f"/ip address add address={ip_address} interface=\"{interface}\""))
 
     def create_route(self, dst_address, gateway, distance, disabled):
-        return self.check_addsetcreate_result(self.net_connect.send_command(f"/ip route add dst-address={dst_address} gateway={gateway} distance={distance} disabled={disabled}"))
+        return self.check_result(self.net_connect.send_command(f"/ip route add dst-address={dst_address} gateway={gateway} distance={distance} disabled={disabled}"))
 
     def create_user(self, username, password, group):
-        return self.check_addsetcreate_result(self.net_connect.send_command(f"/user add name={username} password={password} group={group}"))
+        return self.check_result(self.net_connect.send_command(f"/user add name={username} password={password} group={group}"))
 
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    def check_addsetcreate_result(self, command_output):
+    def check_result(self, command_output):
         for line in command_output.splitlines():
             message = re.sub(" +", " ", line).strip()
 
@@ -313,13 +390,41 @@ class MikrotikDevice:
 
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    def do_backup(self, dont_encrypt):
-        self.output = self.net_connect.send_command(f"/system backup save dont-encrypt={dont_encrypt}")    
+    def download_backup(self, local_path):
+        transport = paramiko.Transport((self.device['host'], self.device['port']))
+        transport.connect(None, self.device['username'], self.device['password'])
+        sftp = paramiko.SFTPClient.from_transport(transport)
 
-        if "backup saved" in self.output:
+        remote_path = "/" + self.last_backup['name'] + ".backup"
+
+        try:
+            sftp.get(remotepath=remote_path, localpath=local_path)
             return True
-        else:
+
+        except Exception as e:
+            if "Permission denied" in str(e):
+                print(f"ERROR: Permission denied in local folder {local_path}")
+            
             return False
+
+    def download_export(self, local_path):
+        export = ""
+
+        for line in str(self.net_connect.send_command("/export terse", delay_factor=8)).splitlines():
+            if line != "":
+                if export == "":
+                    export += line
+                else:
+                    export += "\n" + line
+
+            else:
+                break
+
+        file = open(local_path + f"/export_{self.current_datetime}.rsc", "a")
+        file.write(export)
+        file.close()
+
+        return f"Config exported sucessfully in {local_path}" + f"/export_{self.current_datetime}.rsc"
 
     def enable_cloud_dns(self):        
         self.net_connect.send_command("/ip cloud set ddns-enabled=yes")
@@ -337,10 +442,20 @@ class MikrotikDevice:
         
         return output
 
+    def make_backup(self, name="backup", password="", encryption="aes-sha256", dont_encrypt="yes"):
+        self.last_backup['name'] = name + "_" + self.get_identity() + "_" + self.current_datetime
+
+        self.output = self.net_connect.send_command(f"/system backup save name={self.last_backup['name']} password={password} encryption={encryption} dont-encrypt={dont_encrypt}")    
+
+        if "backup saved" in self.output:
+            return True
+        else:
+            return False
+
     def send_command(self, query):
         output = ""
 
-        for line in str(self.net_connect.send_command(query)).splitlines():
+        for line in str(self.net_connect.send_command(query, delay_factor=8)).splitlines():
             if line != "":
                 if output == "":
                     output += line
