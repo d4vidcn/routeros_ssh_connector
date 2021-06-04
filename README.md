@@ -2,10 +2,8 @@
 
 <div>
     <a href="https://github.com/d4vidcn/routeros_ssh_connector/blob/master/LICENSE"><img src="https://svgshare.com/i/Xt6.svg" /></a>
-    <a href="https://pypi.org/project/routeros-ssh-connector/"><img src="https://svgshare.com/i/Xrn.svg" /></a>
     <img src="https://svgshare.com/i/XtH.svg" />
 </div>
-
 
 ## Features
 A python-based SSH API for MikroTik devices
@@ -42,14 +40,14 @@ router.connect("ip_address", "username", "password", "port")
 
 **GET**                     |           **UPDATE**          |         **CREATE**        |      **TOOLS**
 :--------------------------:|:-----------------------------:|:-------------------------:|:-------------------:
-get_identity                | update_address_pool           | create_address_pool       | make_backup
-get_interfaces              | update_dhcp_client            | create_dhcp_client        | download_backup
-get_ip_addresses            | update_dhcp_server_server     | create_dhcp_server        | download_export
-get_resources               | update_dhcp_server_network    | create_ip_address         | enable_cloud_dns
-get_routes<sup>**1**</sup>  | update_identity               | create_route              | export_configuration
-get_services                | update_ip_address             | create_user               | send_command
-get_users                   | update_services               |                           |
-.                           | update_user                   |                           |
+get_export_configuration    | update_address_pool           | create_address_pool       | make_backup
+get_identity                | update_dhcp_client            | create_dhcp_client        | download_backup
+get_interfaces              | update_dhcp_server_network    | create_dhcp_server        | download_export
+get_ip_addresses            | update_dhcp_server_server     | create_ip_address         | enable_cloud_dns
+get_resources               | update_identity               | create_route              | send_command
+get_routes<sup>**1**</sup>  | update_ip_address             | create_user               | 
+get_services                | update_services               |                           |
+get_users                   | update_user                   |                           |
 
 <sup>**1**</sup> Limited to first 1000 routes due to performance
 
@@ -198,6 +196,6 @@ router.disconnect()
 del router
 ```
 
-Output returns a message with full path of downloaded export:
+Output returns a message with full path of downloaded export file:
 
     Config exported sucessfully in /home/myuser/export_04-06-2021_19-07-29.rsc
