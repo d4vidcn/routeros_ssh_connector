@@ -49,7 +49,7 @@ get_resources               | update_dhcp_server_network    | create_ip_address 
 get_routes<sup>**1**</sup>  | update_identity               | create_route              | export_configuration
 get_services                | update_ip_address             | create_user               | send_command
 get_users                   | update_services               |                           |
-                            | update_user                   |                           |
+.                           | update_user                   |                           |
 
 <sup>**1**</sup> Limited to first 1000 routes due to performance
 
