@@ -44,8 +44,8 @@ router.connect("ip_address", "username", "password", "port")
 :--------------------------:|:-----------------------------:|:-------------------------:|:-------------------:
 get_identity                | update_address_pool           | create_address_pool       | make_backup
 get_interfaces              | update_dhcp_client            | create_dhcp_client        | download_backup
-get_ip_addresses            | update_dhcp_server_server     | create_dhcp_server        | download_export
-get_resources               | update_dhcp_server_network    | create_ip_address         | enable_cloud_dns
+get_ip_addresses            | update_dhcp_server_network    | create_dhcp_server        | download_export
+get_resources               | update_dhcp_server_server     | create_ip_address         | enable_cloud_dns
 get_routes<sup>**1**</sup>  | update_identity               | create_route              | export_configuration
 get_services                | update_ip_address             | create_user               | send_command
 get_users                   | update_services               |                           |
