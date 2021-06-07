@@ -443,7 +443,7 @@ class MikrotikDevice:
         file.write(export)
         file.close()
 
-        return f"Config exported sucessfully in {local_path}" + f"/export_{self.current_datetime}.rsc"
+        return f"{local_path}" + f"/export_{self.current_datetime}.rsc"
 
     def enable_cloud_dns(self):        
         self.net_connect.send_command("/ip cloud set ddns-enabled=yes")

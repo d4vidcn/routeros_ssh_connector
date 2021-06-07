@@ -8,7 +8,7 @@
 ## Features
 A python-based SSH API for MikroTik devices
 
-This class allows you to get, update and create configuration on MikroTik devices plus other some extra utilities.
+This API allows you to get, update and create configuration on MikroTik devices plus other some extra utilities.
 
 This project is still in development and will include new functionalities in the future.
 
@@ -40,10 +40,10 @@ router.connect("ip_address", "username", "password", "port")
 
 **GET**                     |           **UPDATE**          |         **CREATE**        |      **TOOLS**
 :--------------------------:|:-----------------------------:|:-------------------------:|:-------------------:
-get_export_configuration    | update_address_pool           | create_address_pool       | make_backup
-get_identity                | update_dhcp_client            | create_dhcp_client        | download_backup
-get_interfaces              | update_dhcp_server_network    | create_dhcp_server        | download_export
-get_ip_addresses            | update_dhcp_server_server     | create_ip_address         | enable_cloud_dns
+get_export_configuration    | update_address_pool           | create_address_pool       | download_backup
+get_identity                | update_dhcp_client            | create_dhcp_client        | download_export
+get_interfaces              | update_dhcp_server_network    | create_dhcp_server        | enable_cloud_dns
+get_ip_addresses            | update_dhcp_server_server     | create_ip_address         | make_backup
 get_resources               | update_identity               | create_route              | send_command
 get_routes<sup>**1**</sup>  | update_ip_address             | create_user               | 
 get_services                | update_services               |                           |
@@ -149,7 +149,7 @@ router.connect("10.0.0.1", "myuser", "strongpassword")
 # For Linux: "/home/myuser"
 # For Windows: "C:/Users/myuser/Downloads"
 
-print(router.download_backup("local_path"))
+print(router.download_backup("/home/myuser"))
 router.disconnect()
 del router
 ```
@@ -165,7 +165,7 @@ from routeros_ssh_connector import MikrotikDevice
 
 router = MikrotikDevice()
 router.connect("10.0.0.1", "myuser", "strongpassword")
-print(router.export_configuration())
+print(router.get_export_configuration())
 router.disconnect()
 del router
 ```
@@ -198,4 +198,4 @@ del router
 
 Output returns a message with full path of downloaded export file:
 
-    Config exported sucessfully in /home/myuser/export_04-06-2021_19-07-29.rsc
+    /home/myuser/export_04-06-2021_19-07-29.rsc
