@@ -42,14 +42,13 @@ router.connect("ip_address", "username", "password", "port")
 :--------------------------:|:-----------------------------:|:-------------------------:|:-------------------:
 get_export_configuration    | update_address_pool           | create_address_pool       | download_backup
 get_identity                | update_dhcp_client            | create_dhcp_client        | download_export
-get_interfaces              | update_dhcp_server_network    | create_dhcp_server        | enable_cloud_dns
-get_ip_addresses            | update_dhcp_server_server     | create_ip_address         | make_backup
-get_resources               | update_identity               | create_route              | send_command
-get_routes<sup>**1**</sup>  | update_ip_address             | create_user               | 
+get_interfaces              | update_dhcp_server_network    | create_dhcp_server        | download_file
+get_ip_addresses            | update_dhcp_server_server     | create_ip_address         | enable_cloud_dns
+get_resources               | update_identity               | create_route              | make_backup
+get_routes                  | update_ip_address             | create_user               | send_command
 get_services                | update_services               |                           |
 get_users                   | update_user                   |                           |
 
-<sup>**1**</sup> Limited to first 1000 routes due to performance
 
 ```python
 interfaces = router.get_interfaces()
@@ -129,14 +128,14 @@ router.disconnect()
 del router
 ```
 
-Output returns command output like a terminal:
+Output returns command output without left spaces (left trim):
 
-                    time: 19:47:44
-                    date: jun/01/2021
+    time: 19:47:44
+    date: jun/01/2021
     time-zone-autodetect: yes
-        time-zone-name: Europe/Madrid
-            gmt-offset: +02:00
-            dst-active: yes
+    time-zone-name: Europe/Madrid
+    gmt-offset: +02:00
+    dst-active: yes
 
 #### Download backup from device to local folder
 ```python
@@ -154,9 +153,9 @@ router.disconnect()
 del router
 ```
 
-Output returns `True` if no errors are encountered. In other case, returns the error itself:
+Output returns a message with full path of downloaded export file:
 
-    True
+    /home/mysuser/backup_Mikrotik_07-06-2021_21-38-47.backup
 
 
 #### Export full config from device to terminal output
@@ -198,4 +197,19 @@ del router
 
 Output returns a message with full path of downloaded export file:
 
-    /home/myuser/export_04-06-2021_19-07-29.rsc
+    /home/myuser/export_Mikrotik_07-06-2021_21-42-33.rsc
+
+#### Download any file from device
+```python
+from routeros_ssh_connector import MikrotikDevice
+
+router = MikrotikDevice()
+router.connect("10.0.0.1", "myuser", "strongpassword")
+print(router.download_file("myfile.txt", "/home/myuser"))
+router.disconnect()
+del router
+```
+
+Output returns a message with full path of downloaded export file:
+
+    /home/myuser/myfile.txt

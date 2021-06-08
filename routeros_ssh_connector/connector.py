@@ -1,7 +1,4 @@
-from os import remove
-import re
-import time
-import paramiko
+import re, time, paramiko, tempfile, os, sys
 
 from datetime import datetime
 from netmiko import Netmiko
@@ -12,6 +9,8 @@ class MikrotikDevice:
         self.now = datetime.now()
         self.current_datetime = self.now.strftime("%d-%m-%Y_%H-%M-%S")
         self.last_backup = {}
+        self.last_export = {}
+        self.tmp_dir = tempfile.gettempdir().replace("\\", "/") + "/"
 
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -23,7 +22,22 @@ class MikrotikDevice:
             "device_type": "mikrotik_routeros",
             "port": port,
         }
-        self.net_connect = Netmiko(**self.device, global_cmd_verify=False, global_delay_factor=2)
+        try:
+            self.net_connect = Netmiko(**self.device, global_cmd_verify=False, global_delay_factor=2, conn_timeout=5)
+
+        except Exception as e:
+            if "TCP connection to device failed" in str(e):
+                print("ERROR: No response from device. Check device connection parameters")
+                sys.exit()
+
+            elif "Authentication to device failed" in str(e):
+                print("ERROR: Authentication failed. Check username and password")
+                sys.exit()
+                
+            else:
+                print("EXCEPTION:", str(e))
+                sys.exit()
+
 
     def disconnect(self):
         self.net_connect.disconnect()
@@ -154,35 +168,55 @@ class MikrotikDevice:
         return self.resources
 
     def get_routes(self):
-        self.routes = []        
+        print("*** INFO ***: This process may take some time to get info depending on how many routes have in your device. Please wait...")
 
-        self.output = self.net_connect.send_command("/ip route print detail without-paging")
+        self.routes = []
+        filename = f"routes_{self.get_identity()}.txt"
+        delay = 0
 
-        for line in self.output.splitlines():
+        total_routes = int(self.net_connect.send_command(f"/ip route print count-only"))
+
+        if total_routes <= 500:
+            delay = 4
+        
+        elif total_routes <= 1500:
+            delay = 8
+        
+        elif total_routes <= 2500:
+            delay = 16
+
+        elif total_routes > 2500:
+            delay = 32
+
+        self.net_connect.send_command(f"/ip route print detail terse without-paging file={filename}", delay_factor=delay)
+        self.download_file(filename, self.tmp_dir)
+
+        routes = open(self.tmp_dir + filename, "r")
+
+        for line in routes:
             parsed = re.sub(" +", " ", line).strip()            
 
             if re.search("^([0-9]|[1-9][0-9]{1,5}|[1-7][0-9]{6}|8000000)", parsed):
                 route = {}
 
-                route_counter = int(parsed.split(" ")[0])
+                route_line = parsed.split(" ")
+                
+                route['flags'] = route_line[1]
+                route["destination"] = re.search(r'dst-address=(.*?) [a-z]', parsed).group(1)
 
-                if route_counter <= 1000:
-                    route_line = parsed.split(" ")
-                    
-                    route['flags'] = route_line[1]
-                    route["destination"] = re.search(r'dst-address=(.*?) [a-z]', parsed).group(1)
-
-                    if "gateway" in parsed:
-                        route["gateway"] = re.search(r'gateway=(.*?) [a-z]', parsed).group(1)
-                    else:
-                        route["gateway"] = ""
-
-                    route["distance"] = re.search(r'distance=(.*?) [a-z]', parsed).group(1)
-                    
-                    self.routes.append(route)
-
+                if "gateway" in parsed:
+                    route["gateway"] = re.search(r'gateway=(.*?) [a-z]', parsed).group(1)
                 else:
-                    break
+                    route["gateway"] = ""
+
+                route["distance"] = re.search(r'distance=(.*?) [a-z]', parsed).group(1)
+                
+                self.routes.append(route)
+
+        self.net_connect.send_command(f"/file remove {filename}")
+
+        routes.close()
+        os.remove(self.tmp_dir + filename)
 
         return self.routes
 
@@ -409,52 +443,63 @@ class MikrotikDevice:
 
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    def download_backup(self, local_path):
+    def download_backup(self, local_path, filename=None):
+        if filename == None:
+            if self.make_backup():
+                return self.download_file(self.last_backup['name'], local_path)
+        else:
+            return self.download_file(filename, local_path)
+
+    def download_export(self, local_path):
+        print("*** INFO ***: This process may take some time to get info depending on how many config are in your device. Please wait...")
+
+        self.last_export['name'] = "export_" + self.get_identity() + "_" + self.current_datetime + ".rsc"
+        self.net_connect.send_command(f"/export terse file={self.last_export['name']}", delay_factor=16)
+
+        return self.download_file(self.last_export['name'], local_path)
+
+    def download_file(self, filename, local_path):
         transport = paramiko.Transport((self.device['host'], self.device['port']))
         transport.connect(None, self.device['username'], self.device['password'])
         sftp = paramiko.SFTPClient.from_transport(transport)
 
-        remote_path = "/" + self.last_backup['name'] + ".backup"
+        remote_path = "/" + filename
+        local_path = local_path + f"/{filename}"
 
         try:
+            sftp.stat(remote_path)
             sftp.get(remotepath=remote_path, localpath=local_path)
-            return True
+            
+            return local_path
 
         except Exception as e:
-            if "Permission denied" in str(e):
+            if "Errno 13" in str(e):
                 print(f"ERROR: Permission denied in local folder {local_path}")
-            
-            return False
+                return False
 
-    def download_export(self, local_path):
-        export = ""
-
-        for line in str(self.net_connect.send_command("/export terse", delay_factor=8)).splitlines():
-            if line != "":
-                if export == "":
-                    export += line
-                else:
-                    export += "\n" + line
+            elif "Errno 2" in str(e):
+                print("ERROR: File '{}'not found. Please make sure that file exists in remote device".format(remote_path.replace("/", "")))
+                return False
 
             else:
-                break
+                print(f"ERROR: {e}")
+                return False
 
-        file = open(local_path + f"/export_{self.current_datetime}.rsc", "a")
-        file.write(export)
-        file.close()
-
-        return f"{local_path}" + f"/export_{self.current_datetime}.rsc"
-
-    def enable_cloud_dns(self):        
+    def enable_cloud_dns(self):
         self.net_connect.send_command("/ip cloud set ddns-enabled=yes")
         time.sleep(2)
 
         return self.net_connect.send_command(":put [/ip cloud get dns-name]")
 
-    def make_backup(self, name="backup", password="", encryption="aes-sha256", dont_encrypt="yes"):
-        self.last_backup['name'] = name + "_" + self.get_identity() + "_" + self.current_datetime
+    def make_backup(self, name="backup", password=None, encryption="aes-sha256", dont_encrypt="yes"):
+        self.last_backup['name'] = name + "_" + self.get_identity() + "_" + self.current_datetime + ".backup"
 
-        self.output = self.net_connect.send_command(f"/system backup save name={self.last_backup['name']} password={password} encryption={encryption} dont-encrypt={dont_encrypt}")    
+        base_cmd = f"/system backup save name={self.last_backup['name']} encryption={encryption} dont-encrypt={dont_encrypt}"
+
+        if password is not None:
+            base_cmd += f" password={password}"
+        
+        self.output = self.net_connect.send_command(base_cmd, delay_factor=8)
 
         if "backup saved" in self.output:
             return True
@@ -467,8 +512,8 @@ class MikrotikDevice:
         for line in str(self.net_connect.send_command(query, delay_factor=8)).splitlines():
             if line != "":
                 if output == "":
-                    output += line
+                    output += line.lstrip()
                 else:
-                    output += "\n" + line
+                    output += "\n" + line.lstrip()
         
         return output

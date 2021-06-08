@@ -2,3 +2,5 @@
 /test.py
 /dist/
 /routeros_ssh_connector/__pycache__/
+/venv/
+/.vscode/
