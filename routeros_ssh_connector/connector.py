@@ -376,7 +376,7 @@ class MikrotikDevice:
 
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> TOOLS methods
-    def configure_wlan(self, ssid, password, country="no_country_set", band="5"):
+    def configure_wlan(self, ssid, password, band, country="no_country_set"):
         self.net_connect.send_command(f"/interface wireless security-profiles remove auto_wlan")
 
         self.net_connect.send_command(f"/interface wireless security-profiles add name=auto_wlan mode=dynamic-keys authentication-types=wpa2-psk,wpa2-eap \
@@ -421,7 +421,7 @@ class MikrotikDevice:
             frequency=auto wireless-protocol=802.11 wps-mode=disabled frequency-mode=regulatory-domain country=no_country_set installation=indoor wmm-support=enabled \
                 max-station-count=100 distance=indoors hw-retries=8"
 
-        if band == "2":
+        if band == "2g":
             if wlan_2g_index != None:                
                 output = self.net_connect.send_command(query_cmd_2g)
                         
@@ -433,7 +433,7 @@ class MikrotikDevice:
             else:
                 return "There aren't any 2.4 GHz wlan interface present"
 
-        elif band == "5":
+        elif band == "5g":
             if wlan_5g_index != None:
                 output = self.net_connect.send_command(query_cmd_5g)
 
@@ -445,7 +445,7 @@ class MikrotikDevice:
             else:
                 return "There aren't any 5 GHz wlan interface present"
 
-        elif band == "all":
+        elif band == "both":
             if wlan_2g_index != None and wlan_5g_index != None:
                 output2 = self.net_connect.send_command(query_cmd_2g)
 
