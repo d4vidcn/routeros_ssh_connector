@@ -50,8 +50,6 @@ get_services                | update_services               |                   
 get_users                   | update_user                   |                           | send_command
 .                           |                               |                           | update_system
 .                           |                               |                           | upload_file
-.                           |                               |                           | 
-.                           |                               |                           | 
 
 
 ```python
