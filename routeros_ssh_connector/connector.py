@@ -1,8 +1,8 @@
-import re, time, paramiko, tempfile, os, sys
+import re, time, paramiko, tempfile, os, sys, paramiko
 
 from datetime import datetime
 from netmiko import Netmiko
-import paramiko
+from packaging.version import Version, parse
 
 class MikrotikDevice:
     def __init__(self):
@@ -10,10 +10,10 @@ class MikrotikDevice:
         self.current_datetime = self.now.strftime("%d-%m-%Y_%H-%M-%S")
         self.last_backup = {}
         self.last_export = {}
-        self.tmp_dir = tempfile.gettempdir().replace("\\", "/") + "/"
+        self.tempdir = tempfile.gettempdir().replace("\\", "/") + "/"
 
 
-# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Connection methods
     def connect(self, ip_address, username, password, port=22):
         self.device = {
             "host": ip_address,
@@ -38,12 +38,11 @@ class MikrotikDevice:
                 print("EXCEPTION:", str(e))
                 sys.exit()
 
-
     def disconnect(self):
         self.net_connect.disconnect()
 
 
- # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+ # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> GET methods
     def get_export_configuration(self):
         self.output = self.net_connect.send_command("/export terse", delay_factor=8)    
 
@@ -68,62 +67,7 @@ class MikrotikDevice:
                 return parsed[1]
 
     def get_interfaces(self):
-        self.interfaces = []
-        
-        self.output = self.net_connect.send_command("/interface print detail without-paging")
-
-        for line in self.output.splitlines():
-            interface = {}
-            parsed = re.sub(" +", " ", line).strip()
-
-            if re.search("^([0-9]|[1-9][0-9]{1,2}|[1-7][0-9]{3}|80[0-9]{2}|81[0-8][0-9]|819[0-2])", parsed):
-                status = parsed.split(" ")[1]
-                
-                if status == "R":
-                    status = "running"
-
-                elif status == "X":
-                    status = "disabled"
-
-                elif status == "D":
-                    status = "dynamic"
-
-                elif status == "S":
-                    status = "slave"
-
-                elif status == "RS":
-                    status = "running-slave"
-
-                elif status == "XS":
-                    status = "disabled-slave"
-
-                elif status == "DRS":
-                    status = "dynamic-running-slave"
-                
-                elif "name=" in status:
-                    status = "not_connected"
-
-                interface["status"] = status
-                interface["name"] = re.search(r'name="(.*?)"', parsed).group(1)
-
-                if "default-name" in parsed:
-                    interface["default-name"] = re.search(r'default-name="(.*?)"', parsed).group(1)
-                
-                interface["type"] = re.search(r'type="(.*?)"', parsed).group(1)
-
-                if "actual-mtu" in parsed:
-                    interface["mtu"] = re.search(r"actual-mtu=(.*?) [a-z]", parsed).group(1)
-                else:
-                    interface["mtu"] = ""
-
-                if "mac-address" in parsed:
-                    interface["mac_address"] = re.search(r"mac-address=(.*?) [a-z]", parsed).group(1)
-                else:
-                    interface['mac_address'] = ""
-
-                self.interfaces.append(interface)
-
-        return self.interfaces
+        return self.parse_interfaces(self.net_connect.send_command("/interface print detail without-paging"))
 
     def get_ip_addresses(self):
         self.ip_addresses = []
@@ -189,9 +133,9 @@ class MikrotikDevice:
             delay = 32
 
         self.net_connect.send_command(f"/ip route print detail terse without-paging file={filename}", delay_factor=delay)
-        self.download_file(filename, self.tmp_dir)
+        self.download_file(filename, self.tempdir)
 
-        routes = open(self.tmp_dir + filename, "r")
+        routes = open(self.tempdir + filename, "r")
 
         for line in routes:
             parsed = re.sub(" +", " ", line).strip()            
@@ -216,7 +160,7 @@ class MikrotikDevice:
         self.net_connect.send_command(f"/file remove {filename}")
 
         routes.close()
-        os.remove(self.tmp_dir + filename)
+        os.remove(self.tempdir + filename)
 
         return self.routes
 
@@ -263,7 +207,7 @@ class MikrotikDevice:
         return self.users        
 
 
-# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UPDATE methods
     def update_address_pool(self, pool_name, new_pool_name=None, addresses=None, next_pool=None):
         self.cmd = f"/ip pool set {pool_name}"
 
@@ -364,7 +308,7 @@ class MikrotikDevice:
         return self.check_result(self.net_connect.send_command(self.command))
 
 
-# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> CREATE methods
     def create_address_pool(self, name, range, next_pool="none"):
         return self.check_result(self.net_connect.send_command(f"/ip pool add name={name} ranges={range} next-pool={next_pool}"))
 
@@ -424,25 +368,114 @@ class MikrotikDevice:
     def create_ip_address(self, ip_address, interface):
         return self.check_result(self.net_connect.send_command(f"/ip address add address={ip_address} interface=\"{interface}\""))
 
-    def create_route(self, dst_address, gateway, distance, disabled):
+    def create_route(self, dst_address, gateway, distance, disabled="no"):
         return self.check_result(self.net_connect.send_command(f"/ip route add dst-address={dst_address} gateway={gateway} distance={distance} disabled={disabled}"))
 
     def create_user(self, username, password, group):
         return self.check_result(self.net_connect.send_command(f"/user add name={username} password={password} group={group}"))
 
 
-# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    def check_result(self, command_output):
-        for line in command_output.splitlines():
-            message = re.sub(" +", " ", line).strip()
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> TOOLS methods
+    def configure_wlan(self, ssid, password, band, country="no_country_set"):
+        self.net_connect.send_command(f"/interface wireless security-profiles remove auto_wlan")
 
-            if message != "":
-                return message
+        self.net_connect.send_command(f"/interface wireless security-profiles add name=auto_wlan mode=dynamic-keys authentication-types=wpa2-psk,wpa2-eap \
+                                        unicast-ciphers=aes-ccm,tkip group-ciphers=aes-ccm,tkip wpa2-pre-shared-key={password}")
+
+        self.net_connect.send_command("/int wi reset-configuration [find]")
+
+        output = self.net_connect.send_command(f"/interface wireless print detail")
+        ros_license_level = self.net_connect.send_command(f":put [/system license get nlevel]")
+
+        if "input does not match" in ros_license_level:
+            ros_license_level = self.net_connect.send_command(f":put [/system license get level]")
+
+        radio_mode = None
+
+        if int(ros_license_level) < 4:
+            radio_mode = "bridge"
+        else:
+            radio_mode = "ap-bridge"     
+
+        wlan_2g_index = None
+        wlan_5g_index = None
+
+        for line in output.splitlines():
+            if line != "":
+                if "name" in line:
+                    interface_index = int(line.strip().split(" ")[0])
+                    frequency = re.search(r"frequency=(.*?) [a-z]", line)
+                    
+                    if frequency:
+                        if int(frequency.group(1)) in range (2000,3000):
+                            wlan_2g_index = interface_index
+
+                        elif int(frequency.group(1)) in range (5000,6000):
+                            wlan_5g_index = interface_index
+
+        query_cmd_2g = f"/interface wireless set {wlan_2g_index} disabled=no ssid={ssid} radio-name={ssid} mode={radio_mode} band=2ghz-b/g/n channel-width=20/40mhz-Ce \
+            frequency=auto wireless-protocol=802.11 wps-mode=disabled frequency-mode=regulatory-domain country=no_country_set installation=indoor wmm-support=enabled \
+                max-station-count=100 distance=indoors hw-retries=8"
+
+        query_cmd_5g = f"/interface wireless set {wlan_5g_index} disabled=no ssid={ssid} radio-name={ssid} mode={radio_mode} band=5ghz-a/n channel-width=20/40mhz-Ce \
+            frequency=auto wireless-protocol=802.11 wps-mode=disabled frequency-mode=regulatory-domain country=no_country_set installation=indoor wmm-support=enabled \
+                max-station-count=100 distance=indoors hw-retries=8"
+
+        if band == "2g":
+            if wlan_2g_index != None:                
+                output = self.net_connect.send_command(query_cmd_2g)
+                        
+                if "any value of country" in output:
+                    return "ERROR: Invalid country name!"
+                else:
+                    return "2.4 GHz wlan configured sucessfully!"
+
             else:
-                return True
+                return "There aren't any 2.4 GHz wlan interface present"
 
+        elif band == "5g":
+            if wlan_5g_index != None:
+                output = self.net_connect.send_command(query_cmd_5g)
 
-# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+                if "any value of country" in output:
+                    return "ERROR: Invalid country name!"
+                else:
+                    return "5 GHz wlan configured sucessfully!"
+
+            else:
+                return "There aren't any 5 GHz wlan interface present"
+
+        elif band == "both":
+            if wlan_2g_index != None and wlan_5g_index != None:
+                output2 = self.net_connect.send_command(query_cmd_2g)
+
+                output5 = self.net_connect.send_command(query_cmd_5g)
+
+                if "any value of country" in output2 or "any value of country" in output5:
+                    return "ERROR: Invalid country name!"
+                else:
+                    return "2.4 and 5 GHz wlan configured sucessfully!"
+
+            elif wlan_2g_index != None and wlan_5g_index == None:
+                print("WARNING: There aren't any 5 GHz wlan interface present. Configuring 2.4 GHz wlan only")
+
+                output = self.net_connect.send_command(query_cmd_2g)
+
+                if "any value of country" in output:
+                    return "ERROR: Invalid country name!"
+                else:
+                    return "2.4 GHz wlan configured sucessfully!"                
+
+            elif wlan_2g_index == None and wlan_5g_index != None:
+                print("WARNING: There aren't any 2.4 GHz wlan interface present. Configuring 5 GHz wlan only")
+
+                self.net_connect.send_command(query_cmd_5g)
+
+                if "any value of country" in output:
+                    return "ERROR: Invalid country name!"
+                else:
+                    return "5 GHz wlan configured sucessfully!"
+
     def download_backup(self, local_path, filename=None):
         if filename == None:
             if self.make_backup():
@@ -506,6 +539,18 @@ class MikrotikDevice:
         else:
             return False
 
+    def reboot_device(self):
+        filename = "reboot.auto.rsc"
+        f = open(self.tempdir + filename, "w")
+        f.write("/system reboot")
+        f.close()
+
+        if self.upload_file(self.tempdir, filename):
+            os.remove(self.tempdir + filename)
+            return True
+        else:
+            return False
+
     def send_command(self, query):
         output = ""
 
@@ -517,3 +562,113 @@ class MikrotikDevice:
                     output += "\n" + line.lstrip()
         
         return output
+
+    def update_system(self, channel="long-term"):
+        print("Checking RouterOS updates...")
+        self.net_connect.send_command(f"/system package update set channel={channel}")
+        self.net_connect.send_command(f"/system routerboard settings set auto-upgrade=yes")        
+
+        current_package_version = self.net_connect.send_command("/system package update print")
+
+        current_version = ""
+
+        for line in current_package_version.splitlines():
+            if line != "":
+                parsed_line = line.strip().replace(" ", "")
+
+                if parsed_line.split(":")[0] == "installed-version":
+                    current_version = Version(parsed_line.split(":")[1])
+
+        self.net_connect.send_command("/system package update check-for-updates once")
+        time.sleep(3)
+
+        latest_version = Version(self.net_connect.send_command(":put [/system package update get latest-version]"))
+
+        if latest_version > current_version:            
+            self.net_connect.send_command("/system package update install")
+            return "Update available!. Updating RouterOS device..."
+        else:
+            return "Device is up to date!"
+
+    def upload_file(self, local_path, filename):
+        transport = paramiko.Transport((self.device['host'], self.device['port']))
+        transport.connect(None, self.device['username'], self.device['password'])
+        sftp = paramiko.SFTPClient.from_transport(transport)
+
+        remote_path = "/" + filename
+        local_path = local_path + f"/{filename}"
+
+        try:
+            sftp.put(localpath=local_path, remotepath=remote_path)
+            return True
+
+        except Exception as e:
+            print(f"ERROR: {e}")
+            return False
+
+
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Auxiliary methods
+    def check_result(self, command_output):
+        for line in command_output.splitlines():
+            message = re.sub(" +", " ", line).strip()
+
+            if message != "":
+                return message
+            else:
+                return True
+
+    def parse_interfaces(self, raw_interfaces):
+        self.interfaces = []
+
+        for line in raw_interfaces.splitlines():
+            interface = {}
+            parsed = re.sub(" +", " ", line).strip()
+
+            if re.search("^([0-9]|[1-9][0-9]{1,2}|[1-7][0-9]{3}|80[0-9]{2}|81[0-8][0-9]|819[0-2])", parsed):
+                status = parsed.split(" ")[1]
+                
+                if status == "R":
+                    status = "running"
+
+                elif status == "X":
+                    status = "disabled"
+
+                elif status == "D":
+                    status = "dynamic"
+
+                elif status == "S":
+                    status = "slave"
+
+                elif status == "RS":
+                    status = "running-slave"
+
+                elif status == "XS":
+                    status = "disabled-slave"
+
+                elif status == "DRS":
+                    status = "dynamic-running-slave"
+                
+                elif "name=" in status:
+                    status = "not_connected"
+
+                interface["status"] = status
+                interface["name"] = re.search(r'name="(.*?)"', parsed).group(1)
+
+                if "default-name" in parsed:
+                    interface["default-name"] = re.search(r'default-name="(.*?)"', parsed).group(1)
+                
+                interface["type"] = re.search(r'type="(.*?)"', parsed).group(1)
+
+                if "actual-mtu" in parsed:
+                    interface["mtu"] = re.search(r"actual-mtu=(.*?) [a-z]", parsed).group(1)
+                else:
+                    interface["mtu"] = ""
+
+                if "mac-address" in parsed:
+                    interface["mac_address"] = re.search(r"mac-address=(.*?) [a-z]", parsed).group(1)
+                else:
+                    interface['mac_address'] = ""
+
+                self.interfaces.append(interface)
+
+        return self.interfaces

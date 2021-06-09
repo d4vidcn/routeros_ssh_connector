@@ -4,3 +4,5 @@
 /routeros_ssh_connector/__pycache__/
 /venv/
 /.vscode/
+setup.py
+MANIFEST

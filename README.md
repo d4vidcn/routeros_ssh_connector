@@ -40,14 +40,18 @@ router.connect("ip_address", "username", "password", "port")
 
 **GET**                     |           **UPDATE**          |         **CREATE**        |      **TOOLS**
 :--------------------------:|:-----------------------------:|:-------------------------:|:-------------------:
-get_export_configuration    | update_address_pool           | create_address_pool       | download_backup
-get_identity                | update_dhcp_client            | create_dhcp_client        | download_export
-get_interfaces              | update_dhcp_server_network    | create_dhcp_server        | download_file
-get_ip_addresses            | update_dhcp_server_server     | create_ip_address         | enable_cloud_dns
-get_resources               | update_identity               | create_route              | make_backup
-get_routes                  | update_ip_address             | create_user               | send_command
-get_services                | update_services               |                           |
-get_users                   | update_user                   |                           |
+get_export_configuration    | update_address_pool           | create_address_pool       | configure_wlan
+get_identity                | update_dhcp_client            | create_dhcp_client        | download_backup
+get_interfaces              | update_dhcp_server_network    | create_dhcp_server        | download_export
+get_ip_addresses            | update_dhcp_server_server     | create_ip_address         | download_file
+get_resources               | update_identity               | create_route              | enable_cloud_dns
+get_routes                  | update_ip_address             | create_user               | make_backup
+get_services                | update_services               |                           | reboot_device
+get_users                   | update_user                   |                           | send_command
+.                           |                               |                           | update_system
+.                           |                               |                           | upload_file
+.                           |                               |                           | 
+.                           |                               |                           | 
 
 
 ```python
@@ -100,13 +104,13 @@ Output returns `True` if no errors are encountered. In other case, returns the e
 
     True
 
-#### Create a new enabled route to 172.16.0.0/25 with a distance of 5 with gateway 192.168.1.1
+#### Create a new enabled route to 172.16.0.0/25 with gateway 192.168.1.1 and distance of 5
 ```python
 from routeros_ssh_connector import MikrotikDevice
 
 router = MikrotikDevice()
 router.connect("10.0.0.1", "myuser", "strongpassword")
-print(router.create_route("172.16.0.0/25", "192.168.1.1", "5", "no"))
+print(router.create_route("172.16.0.0/25", "192.168.1.1", "5"))
 
 router.disconnect()
 del router
@@ -213,3 +217,35 @@ del router
 Output returns a message with full path of downloaded export file:
 
     /home/myuser/myfile.txt
+
+
+#### Configure 2.4 GHz wlan interface
+```python
+from routeros_ssh_connector import MikrotikDevice
+
+router = MikrotikDevice()
+router.connect("10.0.0.1", "myuser", "strongpassword")
+print(router.config_wlan(ssid="MySSID", password="12345678", band="2g"))
+router.disconnect()
+del router
+```
+
+Output returns a message with configuration result:
+
+    2.4 GHz wlan configured sucessfully!
+
+
+#### Upgrade RouterOS software
+```python
+from routeros_ssh_connector import MikrotikDevice
+
+router = MikrotikDevice()
+router.connect("10.0.0.1", "myuser", "strongpassword")
+print(router.update_system())
+router.disconnect()
+del router
+```
+
+Output returns a message with command result:
+
+    Update available!. Updating RouterOS device...
