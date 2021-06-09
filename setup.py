@@ -6,7 +6,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 setup(
     name = 'routeros_ssh_connector',
     packages = ['routeros_ssh_connector'],
-    version = '1.6',
+    version = '1.7',
     description = 'A python-based SSH API for MikroTik devices',
     long_description = long_description,
     long_description_content_type = "text/markdown",
@@ -26,5 +26,6 @@ setup(
     include_package_data = True,
     install_requires=[
           'netmiko==3.4.0',
+          'packaging==20.9'
       ]
 )

@@ -100,13 +100,13 @@ Output returns `True` if no errors are encountered. In other case, returns the e
 
     True
 
-#### Create a new enabled route to 172.16.0.0/25 with a distance of 5 with gateway 192.168.1.1
+#### Create a new enabled route to 172.16.0.0/25 with gateway 192.168.1.1 and distance of 5
 ```python
 from routeros_ssh_connector import MikrotikDevice
 
 router = MikrotikDevice()
 router.connect("10.0.0.1", "myuser", "strongpassword")
-print(router.create_route("172.16.0.0/25", "192.168.1.1", "5", "no"))
+print(router.create_route("172.16.0.0/25", "192.168.1.1", "5"))
 
 router.disconnect()
 del router
